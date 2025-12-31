@@ -173,12 +173,12 @@ public class MultiAgentOrchestrator {
                                         + ", score=" + first.score()
                         );
                     }
-                    // Selects top‑scoring unique chunks for synthesis
+                    // Selects top‑scoring unique chunks for synthesis (reduced to 3 for speed)
                     List<ChunkHit> top = ctx.retrieved.stream()
                             .collect(Collectors.toMap(ChunkHit::chunkId, h -> h, (x, y) -> x))
                             .values().stream()
                             .sorted(Comparator.comparingDouble(ChunkHit::score).reversed())
-                            .limit(14)
+                            .limit(3)
                             .toList();
                     System.out.println("RETRIEVED_TOP = " + top.size());
                     if (!top.isEmpty()) {
