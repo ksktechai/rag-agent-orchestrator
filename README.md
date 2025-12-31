@@ -15,6 +15,34 @@ It features explicit agent orchestration, **SSE-based agent observability**, **d
 - **Document versioning**: stable `logicalId`, monotonic `version`, `is_latest` flag
 - **Re-embedding**: recompute embeddings for latest or all docs
 
+## Recent Improvements
+
+### Answer Quality Enhancements (December 2025)
+
+The system has been significantly improved to deliver more accurate, precise answers:
+
+**LLM Upgrade**: Switched from `llama3.2` to `qwen2.5:7b` for superior instruction-following and reasoning capabilities.
+
+**Enhanced Synthesizer Prompts**:
+- **Exact quarter notation preservation**: Correctly distinguishes "Q1 FY22" from "FY2022"
+- **Accurate percentage calculations**: Includes explicit formula `(new - old) / old × 100` with examples
+- **Financial data handling**: Automatic conversion of millions to billions for revenue figures
+- **Focused responses**: Answers only what was asked, avoiding unnecessary information
+
+**Deterministic Responses**: Added `temperature=0.0` to eliminate randomness in answer generation for consistent, reproducible results.
+
+**Simplified Judging**: Removed citation requirements from JudgeAgent validation - citations now shown separately in UI for cleaner answer text.
+
+**Issues Resolved**:
+- ❌ Model outputting fiscal year totals instead of specific quarterly data
+- ❌ Incorrect percentage calculations (e.g., 604% vs correct 595%)
+- ❌ Unnecessary disclaimers like "I couldn't confidently ground..."
+- ❌ Confusion between quarterly vs annual revenue figures
+
+**Example Query**: "How did NVIDIA's total revenue change from Q1 FY22 to Q4 FY25?"
+- **Previous Output**: "NVIDIA's annual revenue grew from $5.66 billion in FY2022 to $60.9 billion in FY2025..."
+- **Current Output**: "NVIDIA's total revenue grew from $5.66 billion in Q1 FY22 to $39.33 billion in Q4 FY25, representing a 595% increase."
+
 ## Architecture Overview
 
 ![Architecture Overview](docs/architecture-overview.png)
@@ -27,7 +55,7 @@ The diagram shows the complete system architecture with color-coded components:
 - 🟡 **Orchestration** (Wheat): Multi-agent orchestrator
 - 🟠 **Agents** (Light Yellow): Router, Planner, Retrievers, Synthesizer, Judge, Query Rewriter
 - 🔷 **Storage** (Light Cyan): VectorStoreService and pgvector database
-- 🔴 **LLM** (Light Pink): Ollama with llama3.2:1b and nomic-embed-text models
+- 🔴 **LLM** (Light Pink): Ollama with qwen2.5:7b and nomic-embed-text models
 
 ## Multi-Agent System
 
@@ -64,19 +92,28 @@ The orchestrator implements an **explicit agent coordination pattern** where spe
 #### 4. **SynthesizerAgent**
 - **Purpose**: Generates a grounded answer using only the retrieved context
 - **Input**: Top-ranked chunks from `ctx.retrieved`, user question
-- **Output**: Sets `ctx.draftAnswer` with citation-annotated response
-- **LLM**: Direct Ollama HTTP API call (bypasses Spring AI)
-- **Grounding Rule**: Must cite every statement with `[chunk:id]` format; cannot use outside knowledge
-- **System Prompt**: Defined in `Agent.java:48-67`
-- **Implementation**: `SynthesizerAgent.java`
+- **Output**: Sets `ctx.draftAnswer` with natural language response
+- **LLM**: Direct Ollama HTTP API call (qwen2.5:7b with temperature=0.0 for deterministic responses)
+- **Grounding Rules**:
+  - Use ONLY information from retrieved context
+  - Answer in natural language without inline citations
+  - Preserve exact quarter notation (e.g., "Q1 FY22" not "FY2022")
+  - Convert millions to billions for revenue data
+  - Calculate percentages correctly: (new - old) / old × 100
+  - Answer only what was asked - avoid unnecessary information
+- **Citations**: Shown separately in UI, not required in answer text
+- **Implementation**: `SynthesizerAgent.java:88-115`
 
 #### 5. **JudgeAgent**
 - **Purpose**: Evaluates if the synthesized answer is adequately grounded in retrieved context
 - **Input**: `ctx.draftAnswer`, `ctx.retrieved`
 - **Output**: Sets `ctx.judgedPass` (true if answer is acceptable, false otherwise)
-- **Logic**: Simple rule-based heuristic (checks if answer is non-empty and has citations)
+- **Logic**: Simple rule-based validation:
+  - Checks that retrieval results exist
+  - Validates answer is non-empty and substantive (>20 chars)
+  - No citation requirements (citations shown separately in UI)
 - **No LLM**: Lightweight evaluation without AI overhead
-- **Implementation**: `JudgeAgent.java`
+- **Implementation**: `JudgeAgent.java:63-90`
 
 #### 6. **QueryRewriteAgent**
 - **Purpose**: Rewrites the query to improve retrieval on subsequent attempts
@@ -183,7 +220,7 @@ docker compose up -d
 
 ### 2) Pull Ollama models
 ```bash
-ollama pull llama3.2
+ollama pull qwen2.5:7b
 ollama pull nomic-embed-text
 ```
 
