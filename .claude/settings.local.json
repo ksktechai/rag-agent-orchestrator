@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(kill:*)",
+      "Bash(ollama pull:*)",
+      "Bash(curl:*)",
+      "Bash(psql:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker ps:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill -9)",
+      "Bash(./gradlew bootRun:*)",
+      "Bash(tail:*)",
+      "Bash(find:*)",
+      "Bash(pkill:*)",
+      "Bash(cat:*)",
+      "Bash(tee:*)"
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: ${PG_URL:jdbc:postgresql://localhost:5432/agenticrag}
+    username: ${PG_USER:postgres}
+    password: ${PG_PASSWORD:postgres}
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  ai:
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      chat:
+        model: ${OLLAMA_CHAT_MODEL:llama3.3}
+      embedding:
+        model: ${OLLAMA_EMBED_MODEL:nomic-embed-text}
+logging:
+  level:
+    org.flywaydb: DEBUG
+    org.springframework.boot.autoconfigure.flyway: DEBUG
+  pattern:
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr([%X{correlationId}]){yellow} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
