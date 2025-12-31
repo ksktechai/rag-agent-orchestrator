@@ -47,10 +47,15 @@ public class OllamaHttpClient {
      * @return The model's response content
      */
     public String chat(String systemPrompt, String userPrompt) {
+        long startTime = System.currentTimeMillis();
         try {
-            log.info("OLLAMA REQUEST - System prompt length: {} chars", systemPrompt.length());
-            log.info("OLLAMA REQUEST - User prompt length: {} chars", userPrompt.length());
-            log.info("OLLAMA REQUEST - User prompt preview: {}", userPrompt.substring(0, Math.min(500, userPrompt.length())));
+            log.info("========== OLLAMA REQUEST START ==========");
+            log.info("Model: {}", modelName);
+            log.info("Base URL: {}", baseUrl);
+            log.info("System prompt length: {} chars", systemPrompt.length());
+            log.info("System prompt preview: {}", systemPrompt.substring(0, Math.min(200, systemPrompt.length())));
+            log.info("User prompt length: {} chars", userPrompt.length());
+            log.info("User prompt preview: {}", userPrompt.substring(0, Math.min(500, userPrompt.length())));
 
             var request = new ChatRequest(
                 modelName,
@@ -62,6 +67,7 @@ public class OllamaHttpClient {
             );
 
             String requestBody = objectMapper.writeValueAsString(request);
+            log.debug("Full request body: {}", requestBody);
 
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + "/api/chat"))
@@ -70,23 +76,36 @@ public class OllamaHttpClient {
                     .timeout(Duration.ofMinutes(2))
                     .build();
 
+            log.info("Sending request to Ollama...");
             HttpResponse<String> response = httpClient.send(
                 httpRequest,
                 HttpResponse.BodyHandlers.ofString()
             );
 
+            long elapsedMs = System.currentTimeMillis() - startTime;
+            log.info("Ollama response received in {} ms ({} seconds)", elapsedMs, String.format("%.2f", elapsedMs / 1000.0));
+
             if (response.statusCode() != 200) {
+                log.error("Ollama API error - Status: {}, Body: {}", response.statusCode(), response.body());
                 throw new RuntimeException("Ollama API error: " + response.statusCode() + " - " + response.body());
             }
 
+            log.debug("Full response body: {}", response.body());
             ChatResponse chatResponse = objectMapper.readValue(response.body(), ChatResponse.class);
             String responseContent = chatResponse.message().content();
-            log.info("OLLAMA RESPONSE - Length: {} chars, Preview: {}",
-                responseContent.length(),
-                responseContent.substring(0, Math.min(300, responseContent.length())));
+
+            log.info("========== OLLAMA RESPONSE ==========");
+            log.info("Response model: {}", chatResponse.model());
+            log.info("Response length: {} chars", responseContent.length());
+            log.info("Response preview: {}", responseContent.substring(0, Math.min(300, responseContent.length())));
+            log.info("Full response content: {}", responseContent);
+            log.info("========== OLLAMA REQUEST END ({}ms) ==========", elapsedMs);
+
             return responseContent;
 
         } catch (Exception e) {
+            long elapsedMs = System.currentTimeMillis() - startTime;
+            log.error("Failed to call Ollama API after {} ms: {}", elapsedMs, e.getMessage(), e);
             throw new RuntimeException("Failed to call Ollama API: " + e.getMessage(), e);
         }
     }

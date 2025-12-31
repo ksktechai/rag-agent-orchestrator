@@ -164,14 +164,11 @@ public class MultiAgentOrchestrator {
         // Retrieves content then synthesizes initial answer
         return retrieveAll
                 .then(Mono.defer(() -> {
-                    System.out.println("RETRIEVED_TOTAL = " + ctx.retrieved.size());
+                    log.info("Retrieved {} chunks from parallel retrievers", ctx.retrieved.size());
                     if (!ctx.retrieved.isEmpty()) {
                         ChunkHit first = ctx.retrieved.get(0);
-                        System.out.println(
-                                "RETRIEVED_SAMPLE -> chunkId=" + first.chunkId()
-                                        + ", title=" + first.title()
-                                        + ", score=" + first.score()
-                        );
+                        log.debug("Sample chunk: chunkId={}, title={}, score={}",
+                                first.chunkId(), first.title(), first.score());
                     }
                     // Selects top‑scoring unique chunks for synthesis (reduced to 3 for speed)
                     List<ChunkHit> top = ctx.retrieved.stream()
@@ -180,14 +177,11 @@ public class MultiAgentOrchestrator {
                             .sorted(Comparator.comparingDouble(ChunkHit::score).reversed())
                             .limit(3)
                             .toList();
-                    System.out.println("RETRIEVED_TOP = " + top.size());
+                    log.info("Selected top {} unique chunks for synthesis", top.size());
                     if (!top.isEmpty()) {
                         ChunkHit best = top.getFirst();
-                        System.out.println(
-                                "TOP_1 -> chunkId=" + best.chunkId()
-                                        + ", title=" + best.title()
-                                        + ", score=" + best.score()
-                        );
+                        log.info("Best chunk: chunkId={}, title={}, score={}",
+                                best.chunkId(), best.title(), best.score());
                     }
                     ctx.retrieved.clear();
                     ctx.retrieved.addAll(top);

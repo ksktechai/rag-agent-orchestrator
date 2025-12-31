@@ -7,13 +7,14 @@ import javax.sql.DataSource;
 
 @Configuration
 public class StartupDiagnostics {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(StartupDiagnostics.class);
 
     @Bean
     ApplicationRunner showJdbcUrl(DataSource ds) {
         return args -> {
             try (var c = ds.getConnection()) {
-                System.out.println("✅ JDBC URL = " + c.getMetaData().getURL());
-                System.out.println("✅ DB User  = " + c.getMetaData().getUserName());
+                log.info("✅ JDBC URL = {}", c.getMetaData().getURL());
+                log.info("✅ DB User  = {}", c.getMetaData().getUserName());
             }
         };
     }

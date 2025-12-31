@@ -29,6 +29,8 @@ import java.util.UUID;
  */
 @Service
 public class VectorStoreService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(VectorStoreService.class);
+
     private final JdbcTemplate jdbc;
     private final EmbeddingModel embedding;
     private final DocumentVersioningRepository versioning;
@@ -58,15 +60,14 @@ public class VectorStoreService {
     public Mono<List<ChunkHit>> search(String query, int k, String jobId) {
 
         if (query == null || query.isBlank()) {
-            System.out.println("VectorStoreService.search(): query is NULL/blank. jobId=" + jobId);
+            log.warn("Search called with null/blank query, jobId={}", jobId);
             return Mono.empty();
         }
 
         return Mono.fromCallable(() -> {
+            log.debug("Generating embedding for query: '{}' (k={}, jobId={})", query, k, jobId);
             float[] vec = embedding.embed(query);
-
-            // quick debug (remove later)
-            System.out.println("QUERY_EMB_DIM=" + vec.length);
+            log.debug("Embedding dimension: {}", vec.length);
 
             String v = toPgVectorLiteral(vec);
 

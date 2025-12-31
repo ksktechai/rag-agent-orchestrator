@@ -33,21 +33,25 @@ import java.io.File;
  * 5. Output the results of the ingestion process, including document IDs.
  */
 public final class IngestFolderCli {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(IngestFolderCli.class);
+
     /**
      * CLI ingests folder contents using dependency injection
      */
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
-            System.err.println("Usage: IngestFolderCli <folderPath>");
+            log.error("Usage: IngestFolderCli <folderPath>");
             System.exit(1);
         }
 
         File folder = new File(args[0]);
         // Exits if path is not a valid folder
         if (!folder.exists() || !folder.isDirectory()) {
-            System.err.println("Not a folder: " + folder.getAbsolutePath());
+            log.error("Not a folder: {}", folder.getAbsolutePath());
             System.exit(1);
         }
+
+        log.info("Starting ingestion from folder: {}", folder.getAbsolutePath());
 
         try (ConfigurableApplicationContext ctx = SpringApplication.run(com.ai.agenticrag.AgenticRagApplication.class)) {
             var ingest = ctx.getBean(IngestService.class);
@@ -64,11 +68,14 @@ public final class IngestFolderCli {
                 try {
                     text = tika.parseToString(f);
                 } catch (Exception ex) {
-                    System.err.println("Skip (parse failed): " + f.getName() + " :: " + ex.getMessage());
+                    log.warn("Skip (parse failed): {} - {}", f.getName(), ex.getMessage());
                     continue;
                 }
 
-                if (text == null || text.trim().isEmpty()) continue;
+                if (text == null || text.trim().isEmpty()) {
+                    log.debug("Skip (empty): {}", f.getName());
+                    continue;
+                }
 
                 var res = ingest.ingestText(
                         "file",
@@ -80,7 +87,7 @@ public final class IngestFolderCli {
                 );
 
                 long id = res.documentId();
-                System.out.println("✅ Ingested " + f.getName() + " -> documentId=" + id);
+                log.info("✅ Ingested {} -> documentId={}", f.getName(), id);
             }
         }
 
