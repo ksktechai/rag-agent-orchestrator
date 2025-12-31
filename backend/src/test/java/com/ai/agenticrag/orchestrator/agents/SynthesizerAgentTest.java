@@ -92,23 +92,6 @@ class SynthesizerAgentTest {
     }
 
     @Test
-    void run_includesAvailableChunkIdsInPrompt() {
-        AgentContext ctx = new AgentContext("Question");
-        ctx.retrieved.add(new ChunkHit(1L, 100L, "Doc", 0, "Content1", 0.9));
-        ctx.retrieved.add(new ChunkHit(5L, 100L, "Doc", 1, "Content2", 0.8));
-        ctx.retrieved.add(new ChunkHit(10L, 100L, "Doc", 2, "Content3", 0.7));
-
-        when(ollamaClient.chat(anyString(), anyString()))
-                .thenReturn("Answer");
-
-        StepVerifier.create(synthesizerAgent.run(ctx))
-                .verifyComplete();
-
-        verify(ollamaClient).chat(anyString(),
-                argThat(userPrompt -> userPrompt.contains("1, 5, 10") || userPrompt.contains("1,5,10")));
-    }
-
-    @Test
     void run_includesQuestionInPrompt() {
         AgentContext ctx = new AgentContext("What is the meaning of life?");
         ctx.retrieved.add(new ChunkHit(1L, 100L, "Doc", 0, "Philosophy content", 0.9));
@@ -123,7 +106,7 @@ class SynthesizerAgentTest {
     }
 
     @Test
-    void run_usesSystemPromptWithCitationRules() {
+    void run_usesSystemPromptWithGroundingRules() {
         AgentContext ctx = new AgentContext("Q");
         ctx.retrieved.add(new ChunkHit(1L, 100L, "Doc", 0, "C", 0.9));
 
@@ -133,8 +116,12 @@ class SynthesizerAgentTest {
         StepVerifier.create(synthesizerAgent.run(ctx))
                 .verifyComplete();
 
-        verify(ollamaClient).chat(argThat(systemPrompt -> systemPrompt.contains("CITATION RULES") &&
-                systemPrompt.contains("[chunk:ID]")), anyString());
+        // Verify new prompt structure with grounding rules
+        verify(ollamaClient).chat(argThat(systemPrompt ->
+                systemPrompt.contains("RULES:") &&
+                systemPrompt.contains("Use ONLY information from CONTEXT") &&
+                systemPrompt.contains("Answer in natural language without citations") &&
+                systemPrompt.contains("CALCULATE PERCENTAGE CORRECTLY")), anyString());
     }
 
     @Test

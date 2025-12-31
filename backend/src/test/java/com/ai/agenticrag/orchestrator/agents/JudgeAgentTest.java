@@ -76,21 +76,9 @@ class JudgeAgentTest {
     }
 
     @Test
-    void run_failsWhenNoCitations() {
+    void run_passesWithSubstantiveAnswerAndRetrieval() {
         AgentContext ctx = new AgentContext("question");
-        ctx.draftAnswer = "Answer without any citations";
-        ctx.retrieved.add(new ChunkHit(1L, 100L, "Doc", 0, "Content", 0.9));
-
-        StepVerifier.create(judgeAgent.run(ctx))
-                .verifyComplete();
-
-        assertFalse(ctx.judgedPass);
-    }
-
-    @Test
-    void run_passesWithValidCitations() {
-        AgentContext ctx = new AgentContext("question");
-        ctx.draftAnswer = "The answer is based on [chunk:1] and [chunk:2].";
+        ctx.draftAnswer = "The answer is based on the retrieved context.";
         ctx.retrieved.add(new ChunkHit(1L, 100L, "Doc1", 0, "Content1", 0.9));
         ctx.retrieved.add(new ChunkHit(2L, 100L, "Doc1", 1, "Content2", 0.85));
 
@@ -101,34 +89,9 @@ class JudgeAgentTest {
     }
 
     @Test
-    void run_failsWhenCitationIdNotInRetrieved() {
+    void run_passesWithNaturalLanguageAnswer() {
         AgentContext ctx = new AgentContext("question");
-        ctx.draftAnswer = "Answer citing [chunk:99] which doesn't exist.";
-        ctx.retrieved.add(new ChunkHit(1L, 100L, "Doc", 0, "Content", 0.9));
-
-        StepVerifier.create(judgeAgent.run(ctx))
-                .verifyComplete();
-
-        assertFalse(ctx.judgedPass);
-    }
-
-    @Test
-    void run_failsWhenSomeCitationsInvalid() {
-        AgentContext ctx = new AgentContext("question");
-        ctx.draftAnswer = "Based on [chunk:1] and [chunk:999].";
-        ctx.retrieved.add(new ChunkHit(1L, 100L, "Doc", 0, "Content", 0.9));
-        // chunk:999 is not in retrieved
-
-        StepVerifier.create(judgeAgent.run(ctx))
-                .verifyComplete();
-
-        assertFalse(ctx.judgedPass);
-    }
-
-    @Test
-    void run_handlesMultipleValidCitations() {
-        AgentContext ctx = new AgentContext("question");
-        ctx.draftAnswer = "[chunk:1] states X. [chunk:2] confirms Y. [chunk:3] adds Z.";
+        ctx.draftAnswer = "NVIDIA's revenue grew from $5.66 billion to $39.33 billion, a 595% increase.";
         ctx.retrieved.add(new ChunkHit(1L, 100L, "Doc", 0, "Content1", 0.9));
         ctx.retrieved.add(new ChunkHit(2L, 100L, "Doc", 1, "Content2", 0.85));
         ctx.retrieved.add(new ChunkHit(3L, 100L, "Doc", 2, "Content3", 0.8));
@@ -148,7 +111,7 @@ class JudgeAgentTest {
         StepVerifier.create(judgeAgent.run(ctx))
                 .verifyComplete();
 
-        assertFalse(ctx.judgedPass); // No citations in null answer
+        assertFalse(ctx.judgedPass); // Null answer fails
     }
 
     @Test
@@ -164,14 +127,14 @@ class JudgeAgentTest {
     }
 
     @Test
-    void run_handlesChunkIdWithLeadingZeros() {
+    void run_failsWhenAnswerTooShort() {
         AgentContext ctx = new AgentContext("question");
-        ctx.draftAnswer = "See [chunk:007] for details.";
-        ctx.retrieved.add(new ChunkHit(7L, 100L, "Doc", 0, "Content", 0.9));
+        ctx.draftAnswer = "Short answer";  // Less than 20 chars
+        ctx.retrieved.add(new ChunkHit(1L, 100L, "Doc", 0, "Content", 0.9));
 
         StepVerifier.create(judgeAgent.run(ctx))
                 .verifyComplete();
 
-        assertTrue(ctx.judgedPass);
+        assertFalse(ctx.judgedPass);
     }
 }
