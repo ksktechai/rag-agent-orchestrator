@@ -63,7 +63,8 @@ public class OllamaHttpClient {
                     new Message("system", systemPrompt),
                     new Message("user", userPrompt)
                 ),
-                false // stream = false
+                false, // stream = false
+                0.0    // temperature = 0 for deterministic responses
             );
 
             String requestBody = objectMapper.writeValueAsString(request);
@@ -114,7 +115,8 @@ public class OllamaHttpClient {
     record ChatRequest(
         String model,
         List<Message> messages,
-        boolean stream
+        boolean stream,
+        Double temperature
     ) {}
 
     record Message(

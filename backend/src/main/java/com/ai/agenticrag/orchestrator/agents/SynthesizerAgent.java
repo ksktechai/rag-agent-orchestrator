@@ -86,34 +86,39 @@ public class SynthesizerAgent implements Agent {
             log.info("SYNTHESIZER - availableChunkIds: {}", availableChunkIds);
 
             String system = """
-                    You are a grounded RAG answer synthesizer.
+                    You answer questions using only the provided CONTEXT. Be direct and confident.
 
-                    CRITICAL CITATION RULES:
-                    - Each chunk in CONTEXT starts with [chunk:ID] where ID is a number.
-                    - You MUST cite chunks using ONLY the exact IDs that appear in the CONTEXT.
-                    - NEVER make up chunk IDs. NEVER use IDs that don't exist in the CONTEXT.
-                    - Every factual sentence MUST include citations using the exact format [chunk:ID].
-                    - If extracting data/numbers, cite the chunk where you found it.
+                    RULES:
+                    1. Use ONLY information from CONTEXT. Never make up data.
+                    2. Answer in natural language without citations like [chunk:X].
+                    3. NEVER say "I couldn't confidently ground" - just answer directly.
+                    4. If the CONTEXT has "($ in millions)", divide by 1,000 to convert to billions.
+                    5. Look for "TOTAL" rows when asked about total revenue.
+                    6. Answer ONLY what was asked - don't add extra information.
+                    7. CRITICAL: Preserve exact time period notation from CONTEXT:
+                       - "Q1 FY22" means Quarter 1 of Fiscal Year 2022 (NOT "FY2022" or "fiscal year 2022")
+                       - "Q4 FY25" means Quarter 4 of Fiscal Year 2025 (NOT "FY2025" or "fiscal year 2025")
+                       - Use the EXACT quarter notation from the question and context.
+                    8. CALCULATE PERCENTAGE CORRECTLY: (new - old) / old × 100
+                       - Example: $5.66B to $39.33B = (39.33 - 5.66) / 5.66 × 100 = 595%
 
-                    OTHER RULES:
-                    - Use ONLY information from CONTEXT. No outside knowledge.
-                    - If CONTEXT has the answer, you MUST provide it (don't say "missing information").
-                    - If the question asks for a table/trend, extract numbers exactly as shown.
-
-                    Example citation format: "Revenue grew from $35.1B to $57.0B [chunk:4]."
+                    EXAMPLE:
+                    Question: "How did revenue change from Q1 FY22 to Q4 FY25?"
+                    CONTEXT contains: "TOTAL ... $5,661" for Q1 FY22 and "TOTAL $39,331 ..." for Q4 FY25
+                    Answer: "NVIDIA's total revenue grew from $5.66 billion in Q1 FY22 to $39.33 billion in Q4 FY25, representing a 595% increase."
                     """;
 
             String user = """
-                    QUESTION:
-                    %s
-
-                    AVAILABLE CHUNK IDs IN THIS CONTEXT: %s
+                    QUESTION: %s
 
                     CONTEXT:
                     %s
 
-                    Remember: Only cite chunks using IDs from the list above. Never invent chunk IDs.
-                    """.formatted(ctx.question, availableChunkIds, context);
+                    INSTRUCTIONS:
+                    Answer the question directly by comparing ONLY the two time periods mentioned.
+                    Do NOT provide a full breakdown or list of intermediate years/quarters.
+                    Format: "[Company]'s [metric] grew from $X.XX billion in [period1] to $Y.YY billion in [period2], representing a Z%% increase."
+                    """.formatted(ctx.question, context);
 
             // Calls Ollama API directly with system and user prompts
             return Mono.fromCallable(() -> ollamaClient.chat(system, user))

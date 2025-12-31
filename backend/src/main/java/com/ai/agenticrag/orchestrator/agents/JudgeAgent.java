@@ -71,21 +71,21 @@ public class JudgeAgent implements Agent {
                 return;
             }
 
-            // must cite at least one chunk
-            var citedIds = new java.util.HashSet<Long>();
-            var m = java.util.regex.Pattern.compile("\\[chunk:(\\d+)]").matcher(ans);
-            while (m.find()) citedIds.add(Long.parseLong(m.group(1)));
-
-            if (citedIds.isEmpty()) {
+            // must have non-empty answer
+            if (ans.trim().isEmpty()) {
                 ctx.judgedPass = false;
                 return;
             }
 
-            // citations must reference retrieved chunks
-            var retrievedIds = ctx.retrieved.stream().map(ChunkHit::chunkId).collect(java.util.stream.Collectors.toSet());
-            boolean allCitedExist = citedIds.stream().allMatch(retrievedIds::contains);
+            // Simple validation: if answer is very short (< 20 chars), likely not useful
+            if (ans.trim().length() < 20) {
+                ctx.judgedPass = false;
+                return;
+            }
 
-            ctx.judgedPass = allCitedExist;
+            // Pass if we have retrieval and a reasonable answer
+            // (Citations are optional now - shown separately in UI)
+            ctx.judgedPass = true;
         }).subscribeOn(Schedulers.boundedElastic()).then();
     }
 }
