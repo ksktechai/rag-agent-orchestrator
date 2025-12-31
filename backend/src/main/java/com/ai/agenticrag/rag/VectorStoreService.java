@@ -57,15 +57,15 @@ public class VectorStoreService {
         this.configuredEmbeddingModelName = configuredEmbeddingModelName;
     }
 
-    public Mono<List<ChunkHit>> search(String query, int k, String jobId) {
+    public Mono<List<ChunkHit>> search(String query, int k) {
 
         if (query == null || query.isBlank()) {
-            log.warn("Search called with null/blank query, jobId={}", jobId);
+            log.warn("Search called with null/blank query");
             return Mono.empty();
         }
 
         return Mono.fromCallable(() -> {
-            log.info("Generating embedding for query: '{}' (k={}, jobId={})", query, k, jobId);
+            log.info("Generating embedding for query: '{}' (k={})", query, k);
             float[] vec = embedding.embed(query);
             log.info("Embedding dimension: {}", vec.length);
 
@@ -163,8 +163,6 @@ public class VectorStoreService {
                         docId, idx++, c, new PGvector(vec), configuredEmbeddingModelName);
             }
 
-            jdbc.update("INSERT INTO ingest_jobs(job_id, document_id) VALUES (?, ?)",
-                    jobId, docId);
             return new IngestResult(docId, lid.toString(), nextVersion);
         }).subscribeOn(Schedulers.boundedElastic());
     }

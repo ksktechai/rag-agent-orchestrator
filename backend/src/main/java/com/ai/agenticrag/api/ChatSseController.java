@@ -30,16 +30,13 @@ public class ChatSseController {
      * This method combines intermediate events from orchestrator processing with a final response event.
      *
      * @param question the input question submitted by the user, used as the basis for generating events
-     * @param jobId an optional parameter representing the job identifier for tracking the processing request
      * @return a Flux that streams server-sent events encapsulating intermediate events and the final response
      */
     @GetMapping(value = "/api/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<Object>> stream(@RequestParam("question") String question,
-                                                @RequestParam(value = "jobId", required = false) String jobId
-    ) {
-        Flux<ServerSentEvent<Object>> events = orchestrator.events(question, jobId)
+    public Flux<ServerSentEvent<Object>> stream(@RequestParam("question") String question) {
+        Flux<ServerSentEvent<Object>> events = orchestrator.events(question)
                 .map(ev -> ServerSentEvent.builder((Object) ev).event("citations").event("agent").build());
-        Flux<ServerSentEvent<Object>> done = orchestrator.finalAnswer(question, jobId)
+        Flux<ServerSentEvent<Object>> done = orchestrator.finalAnswer(question)
                 .map(ans -> ServerSentEvent.builder((Object) ans).event("final").build())
                 .flux();
         return Flux.concat(events, done);

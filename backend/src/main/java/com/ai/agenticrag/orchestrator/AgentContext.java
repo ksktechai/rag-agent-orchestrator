@@ -129,17 +129,13 @@ public class AgentContext {
 
     public List<Citation> citations = Collections.synchronizedList(new ArrayList<>());
 
-    public final String jobId;
-
     /**
-     * Constructs an instance of the AgentContext class using the given question and job identifier.
+     * Constructs an instance of the AgentContext class using the given question.
      *
      * @param question The initial question or query that the agent will process.
-     * @param jobId The unique identifier for the job or task associated with this context.
      */
-    public AgentContext(String question, String jobId) {
+    public AgentContext(String question) {
         this.question = question;
-        this.jobId = jobId;
         this.query = question;
     }
 
@@ -153,7 +149,6 @@ public class AgentContext {
                 .append("draftAnswer", draftAnswer)
                 .append("judgedPass", judgedPass)
                 .append("citations", citations)
-                .append("jobId", jobId)
                 .toString();
     }
 }

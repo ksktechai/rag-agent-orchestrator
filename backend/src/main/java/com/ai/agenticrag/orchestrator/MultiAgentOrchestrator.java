@@ -85,11 +85,10 @@ public class MultiAgentOrchestrator {
      * to produce events related to routing, planning, and supervisor configuration.
      *
      * @param question the input question or query to be processed by the agents
-     * @param jobId the unique identifier for the job or task being executed
      * @return a Flux stream of {@link AgentEvent} emitted by the agents during execution
      */
-    public Flux<AgentEvent> events(String question, String jobId) {
-        AgentContext ctx = new AgentContext(question, jobId);
+    public Flux<AgentEvent> events(String question) {
+        AgentContext ctx = new AgentContext(question);
         RouterAgent router = new RouterAgent();
         PlannerAgent planner = new PlannerAgent();
 
@@ -104,16 +103,15 @@ public class MultiAgentOrchestrator {
     }
 
     /**
-     * Processes the given question and job identifier to produce a final answer.
+     * Processes the given question to produce a final answer.
      * The method decides whether to retrieve additional information or directly generate a response
      * based on the availability of ingested documents and contextual needs.
      *
      * @param question the question to be answered
-     * @param jobId the identifier for the job associated with the question
      * @return a {@code Mono<FinalAnswer>} representing the asynchronous computation of the final answer
      */
-    public Mono<FinalAnswer> finalAnswer(String question, String jobId) {
-        AgentContext ctx = new AgentContext(question, jobId);
+    public Mono<FinalAnswer> finalAnswer(String question) {
+        AgentContext ctx = new AgentContext(question);
         RouterAgent router = new RouterAgent();
 
         // NEW: if we have ingested docs, prefer retrieval

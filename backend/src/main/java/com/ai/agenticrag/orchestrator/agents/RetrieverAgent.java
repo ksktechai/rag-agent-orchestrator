@@ -71,7 +71,7 @@ public class RetrieverAgent implements Agent {
                 (ctx.query != null && !ctx.query.isBlank())
                         ? ctx.query
                         : ctx.question;
-        return store.search(searchQuery, k, ctx.jobId)
+        return store.search(searchQuery, k)
                 .doOnNext(ctx.retrieved::addAll)
                 .then();
     }
