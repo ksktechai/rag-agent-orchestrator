@@ -14,7 +14,9 @@
       "Bash(find:*)",
       "Bash(pkill:*)",
       "Bash(cat:*)",
-      "Bash(tee:*)"
+      "Bash(tee:*)",
+      "Bash(time curl:*)",
+      "Bash(plantuml:*)"
     ]
   }
 }

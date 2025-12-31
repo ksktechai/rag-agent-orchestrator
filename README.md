@@ -17,32 +17,17 @@ It features explicit agent orchestration, **SSE-based agent observability**, **d
 
 ## Architecture Overview
 
-```mermaid
-flowchart LR
-  UI[React + Tailwind] -->|SSE /api/chat/stream| API[Spring Boot 4 WebFlux]
-  UI -->|multipart /api/ingest/file| API
-  API --> ORCH[Agent Orchestrator]
+![Architecture Overview](docs/architecture-overview.png)
 
-  subgraph Agents
-    R[Router Agent]
-    P[Planner Agent]
-    PR[Parallel Retrievers]
-    S[Synthesizer Agent]
-    J[Judge/Critic Agent]
-    Q[Query Rewrite Agent]
-  end
+> **Source**: [docs/architecture-overview.mmd](docs/architecture-overview.mmd) - Edit the Mermaid source and regenerate with `mmdc -i docs/architecture-overview.mmd -o docs/architecture-overview.png -b white`
 
-  ORCH --> R --> P --> PR --> S --> J
-  J -->|pass| OUT[Final Answer + Citations]
-  J -->|fail| Q --> PR
-
-  PR --> VS[(pgvector)]
-  API --> VS
-  API -->|SSE /api/ingest/progress| UI
-
-  ORCH -->|Ollama chat| OL[(Ollama)]
-  PR -->|Ollama embeddings| OL
-```
+The diagram shows the complete system architecture with color-coded components:
+- 🔵 **UI Layer** (Light Blue): React frontend
+- 🟢 **API Layer** (Light Green): Spring Boot WebFlux controllers
+- 🟡 **Orchestration** (Wheat): Multi-agent orchestrator
+- 🟠 **Agents** (Light Yellow): Router, Planner, Retrievers, Synthesizer, Judge, Query Rewriter
+- 🔷 **Storage** (Light Cyan): VectorStoreService and pgvector database
+- 🔴 **LLM** (Light Pink): Ollama with llama3.2:1b and nomic-embed-text models
 
 ## Multi-Agent System
 
@@ -153,138 +138,11 @@ class AgentContext {
 
 ## Sequence Diagram
 
-The following PlantUML diagram shows the complete data flow for a chat query with retrieval:
+The following sequence diagram shows the complete data flow for a chat query with retrieval:
 
-```plantuml
-@startuml
-!theme plain
-skinparam sequenceMessageAlign center
-skinparam responseMessageBelowArrow true
+![Agent Sequence Diagram](docs/agent-sequence-diagram.png)
 
-actor User
-participant "Frontend\n(React)" as UI
-participant "ChatSseController\n/api/chat/stream" as API
-participant "MultiAgent\nOrchestrator" as ORCH
-participant "AgentContext\n(shared state)" as CTX
-participant "RouterAgent" as ROUTER
-participant "PlannerAgent" as PLANNER
-participant "RetrieverAgent(k=6)" as RET6
-participant "RetrieverAgent(k=10)" as RET10
-participant "RetrieverAgent(k=14)" as RET14
-participant "VectorStore\nService" as VS
-participant "pgvector\n(PostgreSQL)" as DB
-participant "SynthesizerAgent" as SYNTH
-participant "OllamaHttpClient" as OLLAMA
-participant "JudgeAgent" as JUDGE
-participant "QueryRewriteAgent" as REWRITE
-
-User -> UI: Ask question
-UI -> API: GET /api/chat/stream?question=...
-
-== Initialization ==
-API -> ORCH: events(question)
-ORCH -> CTX: new AgentContext(question)
-activate CTX
-
-== Routing Phase ==
-ORCH -> ROUTER: run(ctx)
-ROUTER -> ROUTER: Check if docs exist
-ROUTER -> CTX: needsRetrieval = true
-ROUTER --> ORCH: Mono.empty()
-ORCH -> ROUTER: trace(ctx)
-ROUTER --> API: SSE event: agent (router)
-API --> UI: event:agent\ndata:{router,needsRetrieval:true}
-
-== Planning Phase ==
-ORCH -> PLANNER: trace(ctx)
-PLANNER --> API: SSE event: agent (planner)
-API --> UI: event:agent\ndata:{planner,steps:[...]}
-
-== Final Answer Generation ==
-API -> ORCH: finalAnswer(question)
-ORCH -> ROUTER: run(ctx)
-ROUTER -> CTX: needsRetrieval = true
-
-== Parallel Retrieval Phase ==
-par Parallel Retrievers
-  ORCH -> RET6: run(ctx)
-  RET6 -> VS: search(query, k=6)
-  VS -> VS: embed(query)
-  VS -> DB: SELECT ... ORDER BY embedding <=> ?::vector LIMIT 6
-  DB --> VS: 6 chunks
-  VS --> RET6: List<ChunkHit>
-  RET6 -> CTX: retrieved.addAll(chunks)
-else
-  ORCH -> RET10: run(ctx)
-  RET10 -> VS: search(query, k=10)
-  VS -> DB: SELECT ... LIMIT 10
-  DB --> VS: 10 chunks
-  VS --> RET10: List<ChunkHit>
-  RET10 -> CTX: retrieved.addAll(chunks)
-else
-  ORCH -> RET14: run(ctx)
-  RET14 -> VS: search(query, k=14)
-  VS -> DB: SELECT ... LIMIT 14
-  DB --> VS: 14 chunks
-  VS --> RET14: List<ChunkHit>
-  RET14 -> CTX: retrieved.addAll(chunks)
-end
-
-== Chunk Selection ==
-ORCH -> ORCH: Deduplicate by chunkId
-ORCH -> ORCH: Sort by score DESC
-ORCH -> ORCH: Select top 3 chunks
-ORCH -> CTX: retrieved = top3
-
-== Synthesis Phase ==
-ORCH -> SYNTH: run(ctx)
-SYNTH -> CTX: Read retrieved chunks
-SYNTH -> SYNTH: Build context string\n[chunk:id] content...
-SYNTH -> OLLAMA: chat(systemPrompt, userPrompt)
-note right
-  System: "You are a grounded RAG synthesizer..."
-  User: "QUESTION: {question}\n\nCONTEXT: {chunks}"
-end note
-OLLAMA --> SYNTH: Grounded answer with [chunk:id] citations
-SYNTH -> CTX: draftAnswer = response
-SYNTH --> ORCH: Mono.empty()
-
-== Evaluation Phase ==
-ORCH -> JUDGE: run(ctx)
-JUDGE -> CTX: Read draftAnswer, retrieved
-JUDGE -> JUDGE: Evaluate if answer\nis grounded
-JUDGE -> CTX: judgedPass = true/false
-JUDGE --> ORCH: Mono.empty()
-
-alt Judge Pass (judgedPass = true)
-  ORCH -> CTX: Read draftAnswer, retrieved
-  ORCH -> ORCH: Build FinalAnswer\n(answer + citations)
-  ORCH --> API: FinalAnswer
-  API --> UI: event:final\ndata:{answer,citations}
-  UI --> User: Display answer\nwith citations
-else Judge Fail (judgedPass = false) AND retries < 2
-  == Query Rewrite & Retry ==
-  ORCH -> REWRITE: run(ctx)
-  REWRITE -> OLLAMA: Rewrite query based on failure
-  OLLAMA --> REWRITE: Alternative query
-  REWRITE -> CTX: query = rewrittenQuery
-  REWRITE --> ORCH: Mono.empty()
-
-  note over ORCH: Loop back to Retrieval Phase\nwith new query (attempt++)
-
-  ORCH -> RET6: run(ctx) [attempt 2]
-  note right: Same flow as before\nwith rewritten query
-else Judge Fail AND retries >= 2
-  ORCH -> ORCH: Build FinalAnswer with disclaimer
-  ORCH --> API: FinalAnswer("I couldn't confidently ground...")
-  API --> UI: event:final\ndata:{answer,citations}
-  UI --> User: Display partial answer\nwith disclaimer
-end
-
-deactivate CTX
-
-@enduml
-```
+> **Source**: [docs/agent-sequence-diagram.puml](docs/agent-sequence-diagram.puml) - Edit the PlantUML source and regenerate with `plantuml docs/agent-sequence-diagram.puml`
 
 ### Retry Mechanism
 

@@ -1,0 +1,156 @@
+@startuml
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+' Color scheme for different component types
+skinparam participant {
+    BackgroundColor<<UI>> LightBlue
+    BorderColor<<UI>> DarkBlue
+    BackgroundColor<<API>> LightGreen
+    BorderColor<<API>> DarkGreen
+    BackgroundColor<<Orchestrator>> Wheat
+    BorderColor<<Orchestrator>> SaddleBrown
+    BackgroundColor<<Agent>> LightYellow
+    BorderColor<<Agent>> Orange
+    BackgroundColor<<Context>> Lavender
+    BorderColor<<Context>> Purple
+    BackgroundColor<<Storage>> LightCyan
+    BorderColor<<Storage>> DarkCyan
+    BackgroundColor<<LLM>> LightPink
+    BorderColor<<LLM>> Red
+}
+
+' Arrow colors for different phases - thick and high contrast for dark/light mode
+skinparam sequence {
+    ArrowThickness 2
+    ArrowColor Black
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor White
+    BoxBorderColor Black
+}
+
+actor User #LightBlue
+participant "Frontend\n(React)" as UI <<UI>>
+participant "ChatSseController\n/api/chat/stream" as API <<API>>
+participant "MultiAgent\nOrchestrator" as ORCH <<Orchestrator>>
+participant "AgentContext\n(shared state)" as CTX <<Context>>
+participant "RouterAgent" as ROUTER <<Agent>>
+participant "PlannerAgent" as PLANNER <<Agent>>
+participant "RetrieverAgent(k=6)" as RET6 <<Agent>>
+participant "RetrieverAgent(k=10)" as RET10 <<Agent>>
+participant "RetrieverAgent(k=14)" as RET14 <<Agent>>
+participant "VectorStore\nService" as VS <<Storage>>
+participant "pgvector\n(PostgreSQL)" as DB <<Storage>>
+participant "SynthesizerAgent" as SYNTH <<Agent>>
+participant "Ollama LLM\n(llama3.2:1b)" as OLLAMA <<LLM>>
+participant "JudgeAgent" as JUDGE <<Agent>>
+participant "QueryRewriteAgent" as REWRITE <<Agent>>
+
+User -[#0000FF]> UI: Ask question
+UI -[#0000FF]> API: GET /api/chat/stream?question=...
+
+== Initialization ==
+API -[#228B22]> ORCH: events(question)
+ORCH -[#FF8C00]> CTX: new AgentContext(question)
+activate CTX
+
+== Routing Phase ==
+ORCH -[#FF8C00]> ROUTER: run(ctx)
+ROUTER -[#FF8C00]> ROUTER: Check if docs exist
+ROUTER -[#8B008B]> CTX: needsRetrieval = true
+ROUTER -[#FF8C00]-> ORCH: Mono.empty()
+ORCH -[#FF8C00]> ROUTER: trace(ctx)
+ROUTER -[#228B22]-> API: SSE event: agent (router)
+API -[#0000FF]-> UI: event:agent\ndata:{router,needsRetrieval:true}
+
+== Planning Phase ==
+ORCH -[#FF8C00]> PLANNER: trace(ctx)
+PLANNER -[#228B22]-> API: SSE event: agent (planner)
+API -[#0000FF]-> UI: event:agent\ndata:{planner,steps:[...]}
+
+== Final Answer Generation ==
+API -[#228B22]> ORCH: finalAnswer(question)
+ORCH -[#FF8C00]> ROUTER: run(ctx)
+ROUTER -[#8B008B]> CTX: needsRetrieval = true
+
+== Parallel Retrieval Phase ==
+par Parallel Retrievers
+  ORCH -[#FF8C00]> RET6: run(ctx)
+  RET6 -[#008B8B]> VS: search(query, k=6)
+  VS -[#008B8B]> VS: embed(query)
+  VS -[#008B8B]> DB: SELECT ... ORDER BY embedding <=> ?::vector LIMIT 6
+  DB -[#008B8B]-> VS: 6 chunks
+  VS -[#008B8B]-> RET6: List<ChunkHit>
+  RET6 -[#8B008B]> CTX: retrieved.addAll(chunks)
+else
+  ORCH -[#FF8C00]> RET10: run(ctx)
+  RET10 -[#008B8B]> VS: search(query, k=10)
+  VS -[#008B8B]> DB: SELECT ... LIMIT 10
+  DB -[#008B8B]-> VS: 10 chunks
+  VS -[#008B8B]-> RET10: List<ChunkHit>
+  RET10 -[#8B008B]> CTX: retrieved.addAll(chunks)
+else
+  ORCH -[#FF8C00]> RET14: run(ctx)
+  RET14 -[#008B8B]> VS: search(query, k=14)
+  VS -[#008B8B]> DB: SELECT ... LIMIT 14
+  DB -[#008B8B]-> VS: 14 chunks
+  VS -[#008B8B]-> RET14: List<ChunkHit>
+  RET14 -[#8B008B]> CTX: retrieved.addAll(chunks)
+end
+
+== Chunk Selection ==
+ORCH -[#8B4513]> ORCH: Deduplicate by chunkId
+ORCH -[#8B4513]> ORCH: Sort by score DESC
+ORCH -[#8B4513]> ORCH: Select top 3 chunks
+ORCH -[#8B008B]> CTX: retrieved = top3
+
+== Synthesis Phase ==
+ORCH -[#FF8C00]> SYNTH: run(ctx)
+SYNTH -[#8B008B]> CTX: Read retrieved chunks
+SYNTH -[#FF8C00]> SYNTH: Build context string\n[chunk:id] content...
+SYNTH -[#DC143C]> OLLAMA: chat(systemPrompt, userPrompt)
+note right of OLLAMA #LightPink
+  **LLM Request**
+  System: "You are a grounded RAG synthesizer..."
+  User: "QUESTION: {question}\n\nCONTEXT: {chunks}"
+end note
+OLLAMA -[#DC143C]-> SYNTH: Grounded answer with [chunk:id] citations
+SYNTH -[#8B008B]> CTX: draftAnswer = response
+SYNTH -[#FF8C00]-> ORCH: Mono.empty()
+
+== Evaluation Phase ==
+ORCH -[#FF8C00]> JUDGE: run(ctx)
+JUDGE -[#8B008B]> CTX: Read draftAnswer, retrieved
+JUDGE -[#FF8C00]> JUDGE: Evaluate if answer\nis grounded
+JUDGE -[#8B008B]> CTX: judgedPass = true/false
+JUDGE -[#FF8C00]-> ORCH: Mono.empty()
+
+alt Judge Pass (judgedPass = true)
+  ORCH -[#8B008B]> CTX: Read draftAnswer, retrieved
+  ORCH -[#8B4513]> ORCH: Build FinalAnswer\n(answer + citations)
+  ORCH -[#228B22]-> API: FinalAnswer
+  API -[#0000FF]-> UI: event:final\ndata:{answer,citations}
+  UI -[#0000FF]-> User: Display answer\nwith citations
+else Judge Fail (judgedPass = false) AND retries < 2
+  == Query Rewrite & Retry ==
+  ORCH -[#FF8C00]> REWRITE: run(ctx)
+  REWRITE -[#DC143C]> OLLAMA: Rewrite query based on failure
+  OLLAMA -[#DC143C]-> REWRITE: Alternative query
+  REWRITE -[#8B008B]> CTX: query = rewrittenQuery
+  REWRITE -[#FF8C00]-> ORCH: Mono.empty()
+
+  note over ORCH #Wheat: Loop back to Retrieval Phase\nwith new query (attempt++)
+
+  ORCH -[#FF8C00]> RET6: run(ctx) [attempt 2]
+  note right: Same flow as before\nwith rewritten query
+else Judge Fail AND retries >= 2
+  ORCH -[#8B4513]> ORCH: Build FinalAnswer with disclaimer
+  ORCH -[#228B22]-> API: FinalAnswer("I couldn't confidently ground...")
+  API -[#0000FF]-> UI: event:final\ndata:{answer,citations}
+  UI -[#0000FF]-> User: Display partial answer\nwith disclaimer
+end
+
+deactivate CTX
+
+@enduml

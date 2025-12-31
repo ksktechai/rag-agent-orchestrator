@@ -4,3 +4,4 @@
 **/build/
 **/.gradle/
 **/node_modules/
+/frontend/coverage/

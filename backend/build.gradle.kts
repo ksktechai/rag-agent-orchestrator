@@ -2,6 +2,7 @@ import org.gradle.api.tasks.JavaExec
 
 plugins {
     java
+    jacoco
     id("org.springframework.boot") version "4.0.1"
     id("io.spring.dependency-management") version "1.1.7"
 }
@@ -51,10 +52,58 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("io.projectreactor:reactor-test")
+    testImplementation("org.mockito:mockito-core:5.14.2")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.14.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
 
 tasks.test {
     useJUnitPlatform()
+    // JaCoCo 0.8.12 doesn't support Java 25 yet (class file version 69)
+    // Re-enable when JaCoCo adds Java 25 support
+    // finalizedBy(tasks.jacocoTestReport)
+}
+
+jacoco {
+    toolVersion = "0.8.12"
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+    classDirectories.setFrom(
+        files(classDirectories.files.map {
+            fileTree(it) {
+                exclude(
+                    "**/AgenticRagApplication.class",
+                    "**/IngestFolderCli.class"
+                )
+            }
+        })
+    )
+}
+
+tasks.jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            limit {
+                minimum = "0.80".toBigDecimal()
+            }
+        }
+    }
+    classDirectories.setFrom(
+        files(classDirectories.files.map {
+            fileTree(it) {
+                exclude(
+                    "**/AgenticRagApplication.class",
+                    "**/IngestFolderCli.class"
+                )
+            }
+        })
+    )
 }
 
 tasks.register<JavaExec>("ingestFolder") {
