@@ -65,9 +65,9 @@ public class VectorStoreService {
         }
 
         return Mono.fromCallable(() -> {
-            log.debug("Generating embedding for query: '{}' (k={}, jobId={})", query, k, jobId);
+            log.info("Generating embedding for query: '{}' (k={}, jobId={})", query, k, jobId);
             float[] vec = embedding.embed(query);
-            log.debug("Embedding dimension: {}", vec.length);
+            log.info("Embedding dimension: {}", vec.length);
 
             String v = toPgVectorLiteral(vec);
 

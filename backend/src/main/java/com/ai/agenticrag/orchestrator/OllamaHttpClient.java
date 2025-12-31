@@ -67,7 +67,7 @@ public class OllamaHttpClient {
             );
 
             String requestBody = objectMapper.writeValueAsString(request);
-            log.debug("Full request body: {}", requestBody);
+            log.info("Full request body: {}", requestBody);
 
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + "/api/chat"))
@@ -90,7 +90,7 @@ public class OllamaHttpClient {
                 throw new RuntimeException("Ollama API error: " + response.statusCode() + " - " + response.body());
             }
 
-            log.debug("Full response body: {}", response.body());
+            log.info("Full response body: {}", response.body());
             ChatResponse chatResponse = objectMapper.readValue(response.body(), ChatResponse.class);
             String responseContent = chatResponse.message().content();
 

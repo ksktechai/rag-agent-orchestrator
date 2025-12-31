@@ -167,7 +167,7 @@ public class MultiAgentOrchestrator {
                     log.info("Retrieved {} chunks from parallel retrievers", ctx.retrieved.size());
                     if (!ctx.retrieved.isEmpty()) {
                         ChunkHit first = ctx.retrieved.get(0);
-                        log.debug("Sample chunk: chunkId={}, title={}, score={}",
+                        log.info("Sample chunk: chunkId={}, title={}, score={}",
                                 first.chunkId(), first.title(), first.score());
                     }
                     // Selects top‑scoring unique chunks for synthesis (reduced to 3 for speed)

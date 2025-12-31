@@ -73,7 +73,7 @@ public final class IngestFolderCli {
                 }
 
                 if (text == null || text.trim().isEmpty()) {
-                    log.debug("Skip (empty): {}", f.getName());
+                    log.info("Skip (empty): {}", f.getName());
                     continue;
                 }
 
